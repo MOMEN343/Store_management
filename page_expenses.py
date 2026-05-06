@@ -5,6 +5,8 @@ import customtkinter as ctk
 from datetime import date, datetime
 import os
 import database as db
+from date_picker import show_date_picker
+
 
 FONT_HDR = "Thmanyah Sans"
 FONT_REG = "Cairo"
@@ -39,8 +41,10 @@ class ExpensesPage(ctk.CTkFrame):
         self._from_date = self._to_date = None
         self._plus_icon = get_icon("add", (20, 20))
         self._exp_icon  = get_icon("expenses", (28, 28))
-        self._cal_icon  = get_white_icon("calendar", (18, 18))
+        self._cal_icon  = get_icon("calendar", (18, 18))
+        self._w_cal_icon = get_white_icon("calendar", (18, 18))
         self._del_icon  = get_icon("delete", (16, 16))
+
         self._build()
 
     def _build(self):
@@ -51,20 +55,36 @@ class ExpensesPage(ctk.CTkFrame):
 
         flt = ctk.CTkFrame(self, fg_color=self.C["card"], corner_radius=12, border_width=1, border_color=self.C["border"])
         flt.pack(fill="x", padx=24, pady=(0, 10))
+        
+        # Group everything in order from right to left
         inner = ctk.CTkFrame(flt, fg_color="transparent")
-        inner.pack(padx=12, pady=10, fill="x")
-        ctk.CTkLabel(inner, text=":تاريخ المصروفات", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right", padx=(10, 5))
-        ctk.CTkLabel(inner, text="من", font=(FONT, 13), text_color=self.C["text2"]).pack(side="right", padx=(5, 2))
-        ctk.CTkButton(inner, text="", width=36, height=36, fg_color=self.C["blue"], image=self._cal_icon, hover_color=self.C["accent"], corner_radius=8, command=lambda: self._pick_date_main(self._from_e)).pack(side="right", padx=(2, 5))
-        self._from_e = ctk.CTkEntry(inner, width=110, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="YYYY-MM-DD", corner_radius=8)
-        self._from_e.pack(side="right")
-        ctk.CTkLabel(inner, text="إلى", font=(FONT, 13), text_color=self.C["text2"]).pack(side="right", padx=(15, 2))
-        ctk.CTkButton(inner, text="", width=36, height=36, fg_color=self.C["blue"], image=self._cal_icon, hover_color=self.C["accent"], corner_radius=8, command=lambda: self._pick_date_main(self._to_e)).pack(side="right", padx=(2, 5))
-        self._to_e = ctk.CTkEntry(inner, width=110, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="YYYY-MM-DD", corner_radius=8)
-        self._to_e.pack(side="right")
-        ctk.CTkButton(inner, text="تصفية", width=70, height=36, font=(FONT, 13, "bold"), fg_color=self.C["accent"], text_color=self.C["btn_text"], hover_color="#00897B", corner_radius=8, command=self._apply_filter).pack(side="right", padx=(20, 4))
-        ctk.CTkButton(inner, text="الكل", width=70, height=36, font=(FONT, 13), fg_color=self.C["hover"], text_color=self.C["text"], border_width=1, border_color=self.C["border"], corner_radius=8, command=self._clear_filter).pack(side="right", padx=4)
-        ctk.CTkButton(inner, text="مصروفات اليوم", width=125, height=36, font=(FONT, 13, "bold"), image=self._cal_icon, compound="right", fg_color=self.C["blue"], text_color=self.C["btn_text"], hover_color="#1E40AF", corner_radius=8, command=self._today).pack(side="left", padx=5)
+        inner.pack(pady=10) 
+        
+        # 1. Label (Far Right)
+        ctk.CTkLabel(inner, text=":تاريخ المصروفات", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right", padx=(0, 10))
+        
+        # 2. From Group (Icon docked to Entry)
+        ctk.CTkButton(inner, text="", width=28, height=36, fg_color="transparent", image=self._cal_icon, hover_color=self.C["hover"], corner_radius=8, command=lambda: self._pick_date_main(self._from_e)).pack(side="right", padx=0)
+        self._from_e = ctk.CTkEntry(inner, width=135, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="...من تاريخ", corner_radius=12)
+
+        self._from_e.pack(side="right", padx=0)
+        
+        # 3. To Group (30px gap from 'From' group, then Icon docked to Entry)
+        ctk.CTkButton(inner, text="", width=28, height=36, fg_color="transparent", image=self._cal_icon, hover_color=self.C["hover"], corner_radius=8, command=lambda: self._pick_date_main(self._to_e)).pack(side="right", padx=(0, 30))
+        self._to_e = ctk.CTkEntry(inner, width=135, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="...إلى تاريخ", corner_radius=12)
+
+        self._to_e.pack(side="right", padx=0)
+        
+        # 4. Action Buttons (40px gap from the date entries)
+        ctk.CTkButton(inner, text="تصفية", width=70, height=36, font=(FONT, 13, "bold"), fg_color=self.C["accent"], text_color=self.C["btn_text"], hover_color="#00897B", corner_radius=8, command=self._apply_filter).pack(side="right", padx=(0, 40))
+        ctk.CTkButton(inner, text="الكل", width=70, height=36, font=(FONT, 13), fg_color=self.C["hover"], text_color=self.C["text"], border_width=1, border_color=self.C["border"], corner_radius=8, command=self._clear_filter).pack(side="right", padx=(0, 5))
+
+
+        
+        # 5. Today Button (Using PLACE to anchor it at the Far Left of the 'flt' frame)
+        ctk.CTkButton(flt, text="مصروفات اليوم", width=125, height=36, font=(FONT, 13, "bold"), image=self._w_cal_icon, compound="right", fg_color=self.C["blue"], text_color=self.C["btn_text"], hover_color="#1E40AF", corner_radius=8, command=self._today).place(relx=0.03, rely=0.5, anchor="w")
+
+
 
         kpi_frame = ctk.CTkFrame(self, fg_color="transparent")
         kpi_frame.pack(fill="x", padx=24, pady=(0, 10))
@@ -150,7 +170,8 @@ class ExpensesPage(ctk.CTkFrame):
         self._from_date = self._to_date = None; self.refresh()
 
     def _pick_date_main(self, entry):
-        _ExpDialog.show_calendar(self, entry, self.C)
+        show_date_picker(self, entry, self.C)
+
 
     def _open_add(self):
         _ExpDialog(self, self.C, on_save=self.refresh)
@@ -192,7 +213,8 @@ class _ExpDialog(ctk.CTkToplevel):
             e = ctk.CTkEntry(f, placeholder_text=ph, font=(FONT, 15), height=45, fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], corner_radius=10, justify="right")
             e.pack(side="right", fill="x", expand=True)
             if has_cal:
-                btn = ctk.CTkButton(f, text="", width=35, height=45, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: self.show_calendar(self, e, self.C))
+                btn = ctk.CTkButton(f, text="", width=35, height=45, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: show_date_picker(self, e, self.C))
+
                 btn.pack(side="right", padx=(5, 0))
             return e
             

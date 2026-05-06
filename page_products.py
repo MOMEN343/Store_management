@@ -88,17 +88,21 @@ class ProductsPage(ctk.CTkFrame):
         self._del_icon  = get_icon("delete", (18, 18))
         self._box_icon  = get_icon("supply", (18, 18))
         self._plus_icon = get_icon("add", (20, 20))
+        self._prod_icon = get_icon("products", (28, 28))
         
         self._build()
+
 
     def _build(self):
         # Header
         hdr = ctk.CTkFrame(self, fg_color="transparent")
         hdr.pack(fill="x", padx=24, pady=(20, 10))
 
-        ctk.CTkLabel(hdr, text="🛍 إدارة الأصناف",
+        ctk.CTkLabel(hdr, text="  إدارة الأصناف",
                      font=(FONT_HDR, 24, "bold"),
+                     image=self._prod_icon, compound="right",
                      text_color=self.C["accent"]).pack(side="right")
+
 
         ctk.CTkButton(hdr, text="إضافة صنف جديد",
                       font=(FONT, 15, "bold"),

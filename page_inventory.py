@@ -1,10 +1,11 @@
-﻿"""
+"""
 صفحة الجرد المبسط (الجرد السهل) – النسخة العصرية المطورة
 """
 import customtkinter as ctk
 from datetime import date, datetime
 import os
 import database as db
+from date_picker import show_date_picker
 
 FONT_HDR = "Thmanyah Sans"
 FONT_REG = "Cairo"
@@ -54,8 +55,8 @@ class InventoryPage(ctk.CTkFrame):
         
         title_f = ctk.CTkFrame(hdr, fg_color="transparent")
         title_f.pack(side="right")
-        ctk.CTkLabel(title_f, text=" جرد نهاية الأسبوع", font=(FONT_HDR, 26, "bold"), text_color=self.C["accent"]).pack(side="right")
-        ctk.CTkLabel(title_f, text="", image=self._inv_icon).pack(side="right", padx=10)
+        ctk.CTkLabel(title_f, text=" جرد نهاية الأسبوع", font=(FONT_HDR, 26, "bold"), image=self._inv_icon, compound="right", text_color=self.C["accent"]).pack(side="right")
+
 
         ctk.CTkButton(hdr, text="جلسة جرد جديدة", font=(FONT, 14, "bold"), image=self._plus_icon, compound="right", fg_color=self.C["accent"], text_color="#FFFFFF", corner_radius=12, height=44, command=self._new_session).pack(side="left")
 
@@ -328,7 +329,7 @@ class _SessionDialog(ctk.CTkToplevel):
             e = ctk.CTkEntry(f, placeholder_text=ph, font=(FONT, 15), height=42, fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], corner_radius=10, justify="right")
             e.pack(side="right", fill="x", expand=True)
             if has_cal:
-                ctk.CTkButton(f, text="", width=35, height=42, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: self.show_calendar(self, e, self.C)).pack(side="right", padx=(5, 0))
+                ctk.CTkButton(f, text="", width=35, height=42, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: show_date_picker(self, e, self.C)).pack(side="right", padx=(5, 0))
             return e
             
         self._name = field("عنوان الجلسة", "مثال: جرد الأسبوع")

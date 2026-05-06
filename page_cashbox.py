@@ -3,9 +3,36 @@
 """
 import customtkinter as ctk
 from datetime import date
+import os
 import database as db
+from date_picker import show_date_picker
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ICON_DIR = os.path.join(BASE_DIR, "icons")
+
+def get_icon(name, size=(24, 24)):
+    try:
+        from PIL import Image
+        return ctk.CTkImage(
+            light_image=Image.open(os.path.join(ICON_DIR, f"{name}_light.png")),
+            dark_image=Image.open(os.path.join(ICON_DIR, f"{name}_dark.png")),
+            size=size
+        )
+    except: return None
+
+def get_white_icon(name, size=(24, 24)):
+    try:
+        from PIL import Image
+        img = Image.open(os.path.join(ICON_DIR, f"{name}_dark.png")).convert("RGBA")
+        _, _, _, a = img.split()
+        white_img = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        white_img.putalpha(a)
+        return ctk.CTkImage(light_image=white_img, dark_image=white_img, size=size)
+    except: return None
 
 FONT_HDR = "Thmanyah Sans"
+
 FONT_REG = "Cairo"
 FONT = FONT_REG
 
@@ -16,41 +43,66 @@ class CashboxPage(ctk.CTkFrame):
         self.C = colors
         self._from_date = self._to_date = None
         self._current_tab = "sales"
+        
+        self._cal_icon = get_icon("calendar", (18, 18))
+        self._w_cal_icon = get_white_icon("calendar", (18, 18)) # For the blue button
+        self._cash_icon = get_icon("cashbox", (28, 28))
         self._build()
+
+
+
+
 
     def _build(self):
         hdr = ctk.CTkFrame(self, fg_color="transparent")
         hdr.pack(fill="x", padx=24, pady=(20, 10))
-        ctk.CTkLabel(hdr, text="💰  الصندوق العام", font=(FONT_HDR, 24, "bold"),
+        ctk.CTkLabel(hdr, text="  الصندوق العام", font=(FONT_HDR, 24, "bold"),
+                     image=self._cash_icon, compound="right",
                      text_color=self.C["accent"]).pack(side="right")
+
         
         day = ctk.CTkFrame(self, fg_color="transparent")
         day.pack(fill="x", padx=24, pady=(0, 8))
-        ctk.CTkButton(day, text="📅 اليوم", font=(FONT, 14, "bold"), fg_color=self.C["blue"],
-                      text_color=self.C["btn_text"], corner_radius=8, height=36,
-                      command=self._today).pack(side="left")
         ctk.CTkLabel(day, text=date.today().strftime("%d / %m / %Y"),
                      font=(FONT, 14, "bold"), text_color=self.C["text2"]).pack(side="right")
 
-        flt = ctk.CTkFrame(self, fg_color=self.C["card"], corner_radius=12)
+
+        flt = ctk.CTkFrame(self, fg_color=self.C["card"], corner_radius=12, border_width=1, border_color=self.C["border"])
         flt.pack(fill="x", padx=24, pady=(0, 10))
+        
+        # Center all filter elements - Modernized RTL Style
         inner = ctk.CTkFrame(flt, fg_color="transparent")
-        inner.pack(padx=12, pady=10)
-        ctk.CTkButton(inner, text="الكل", width=70, height=36, font=(FONT, 13),
-                      fg_color=self.C["hover"], text_color=self.C["text"],
-                      corner_radius=8, command=self._clear).pack(side="left", padx=4)
-        ctk.CTkButton(inner, text="تصفية", width=70, height=36, font=(FONT, 13),
-                      fg_color=self.C["blue"], text_color=self.C["btn_text"],
-                      corner_radius=8, command=self._apply).pack(side="left", padx=4)
-        self._to_e = ctk.CTkEntry(inner, width=130, height=36, font=(FONT, 13),
-                                   fg_color=self.C["input"], border_color=self.C["border"],
-                                   text_color=self.C["text"], justify="center", corner_radius=8)
-        self._to_e.pack(side="left", padx=4)
-        self._from_e = ctk.CTkEntry(inner, width=130, height=36, font=(FONT, 13),
-                                     fg_color=self.C["input"], border_color=self.C["border"],
-                                     text_color=self.C["text"], justify="center", corner_radius=8)
-        self._from_e.pack(side="left", padx=4)
-        ctk.CTkLabel(inner, text="📅  من — إلى", font=(FONT, 13), text_color=self.C["text2"]).pack(side="left")
+        inner.pack(pady=10) 
+        
+        # 1. Label (Far Right)
+        ctk.CTkLabel(inner, text=":تصفية حسب التاريخ", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right", padx=(0, 10))
+        
+        # 2. From Group (Icon docked to Entry)
+        ctk.CTkButton(inner, text="", width=28, height=36, fg_color="transparent", image=self._cal_icon, hover_color=self.C["hover"], corner_radius=8, command=lambda: self._pick_date_main(self._from_e)).pack(side="right", padx=0)
+        self._from_e = ctk.CTkEntry(inner, width=135, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="...من تاريخ", corner_radius=12)
+
+        self._from_e.pack(side="right", padx=0)
+        
+        # 3. To Group (30px gap from 'From' group, then Icon docked to Entry)
+        ctk.CTkButton(inner, text="", width=28, height=36, fg_color="transparent", image=self._cal_icon, hover_color=self.C["hover"], corner_radius=8, command=lambda: self._pick_date_main(self._to_e)).pack(side="right", padx=(0, 30))
+        self._to_e = ctk.CTkEntry(inner, width=135, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="...إلى تاريخ", corner_radius=12)
+
+        self._to_e.pack(side="right", padx=0)
+        
+        # 4. Action Buttons (40px gap from the date entries)
+        ctk.CTkButton(inner, text="تصفية", width=70, height=36, font=(FONT, 13, "bold"), fg_color=self.C["accent"], text_color=self.C["btn_text"], hover_color="#00897B", corner_radius=8, command=self._apply).pack(side="right", padx=(0, 40))
+        ctk.CTkButton(inner, text="الكل", width=70, height=36, font=(FONT, 13), fg_color=self.C["hover"], text_color=self.C["text"], border_width=1, border_color=self.C["border"], corner_radius=8, command=self._clear).pack(side="right", padx=(0, 5))
+
+        
+        # 5. Today Button (Using PLACE to anchor it at the Far Left of the 'flt' frame)
+        ctk.CTkButton(flt, text="صندوق اليوم", width=125, height=36, font=(FONT, 13, "bold"), image=self._w_cal_icon, compound="right", fg_color=self.C["blue"], text_color=self.C["btn_text"], hover_color="#1E40AF", corner_radius=8, command=self._today).place(relx=0.03, rely=0.5, anchor="w")
+
+
+
+
+
+
+
 
         # Big cards
         cards = ctk.CTkFrame(self, fg_color="transparent")
@@ -188,8 +240,11 @@ class CashboxPage(ctk.CTkFrame):
                 lbl = ctk.CTkLabel(row, text=v, font=(FONT, 12), text_color=self.C["text"], width=w, anchor=anch, justify="right")
                 lbl.pack(side="right", padx=10, pady=8)
 
+    def _pick_date_main(self, entry):
+        show_date_picker(self, entry, self.C)
     def _today(self):
         t = date.today().isoformat(); self._from_date = t; self._to_date = t; self.refresh()
+
     def _apply(self):
         self._from_date = self._from_e.get().strip() or None; self._to_date = self._to_e.get().strip() or None; self.refresh()
     def _clear(self):

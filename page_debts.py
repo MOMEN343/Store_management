@@ -5,6 +5,8 @@ import customtkinter as ctk
 from datetime import date, datetime
 import os
 import database as db
+from date_picker import show_date_picker
+
 
 FONT_HDR = "Thmanyah Sans"
 FONT_REG = "Cairo"
@@ -56,13 +58,19 @@ class DebtsPage(ctk.CTkFrame):
 
         flt = ctk.CTkFrame(self, fg_color=self.C["card"], corner_radius=12, border_width=1, border_color=self.C["border"])
         flt.pack(fill="x", padx=24, pady=(0, 10))
-        inner = ctk.CTkFrame(flt, fg_color="transparent")
-        inner.pack(padx=20, pady=10, fill="x")
         
-        ctk.CTkLabel(inner, text=":تصفية حسب الحالة", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right", padx=10)
+        # Label on the right
+        ctk.CTkLabel(flt, text=":تصفية حسب الحالة", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right", padx=24, pady=10)
+        
+        # Radio buttons centered in the middle
+        inner = ctk.CTkFrame(flt, fg_color="transparent")
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+        
         self._status_var = ctk.StringVar(value="الكل")
         for s in ["الكل", "مفتوح", "جزئي", "مسدد"]:
             ctk.CTkRadioButton(inner, text=s, variable=self._status_var, value=s, font=(FONT, 13), text_color=self.C["text"], fg_color=self.C["accent"], hover_color=self.C["accent"], command=self.refresh).pack(side="right", padx=15)
+
+
 
         kpi_frame = ctk.CTkFrame(self, fg_color="transparent")
         kpi_frame.pack(fill="x", padx=24, pady=(0, 10))
@@ -188,7 +196,8 @@ class _DebtDialog(ctk.CTkToplevel):
             e = ctk.CTkEntry(f, placeholder_text=ph, font=(FONT, 15), height=42, fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], corner_radius=10, justify="right")
             e.pack(side="right", fill="x", expand=True)
             if has_cal:
-                ctk.CTkButton(f, text="", width=35, height=42, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: _DebtDialog.show_calendar(self, e, self.C)).pack(side="right", padx=(5, 0))
+                ctk.CTkButton(f, text="", width=35, height=42, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: show_date_picker(self, e, self.C)).pack(side="right", padx=(5, 0))
+
             return e
             
         self._name   = add_field("اسم المدين *", "أدخل اسم الشخص المستحق عليه الدين")
@@ -317,7 +326,8 @@ class _PayDialog(ctk.CTkToplevel):
         self._pay_dat = ctk.CTkEntry(f_dat, font=(FONT, 15), height=45, fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], corner_radius=10, justify="right")
         self._pay_dat.pack(side="right", fill="x", expand=True)
         self._pay_dat.insert(0, date.today().isoformat())
-        ctk.CTkButton(f_dat, text="", width=35, height=45, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: _DebtDialog.show_calendar(self, self._pay_dat, self.C)).pack(side="right", padx=(5, 0))
+        ctk.CTkButton(f_dat, text="", width=35, height=45, fg_color="transparent", image=get_icon("calendar", (20, 20)), corner_radius=10, hover_color=self.C["sidebar"], command=lambda: show_date_picker(self, self._pay_dat, self.C)).pack(side="right", padx=(5, 0))
+
 
         ctk.CTkLabel(body, text=":ملاحظات", font=(FONT, 14, "bold"), text_color=self.C["text"], anchor="e").pack(fill="x")
         self._pay_not = ctk.CTkEntry(body, placeholder_text="مثلاً: سداد نقدي، شيك...", font=(FONT, 14), height=45, fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], corner_radius=10, justify="right")

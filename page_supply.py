@@ -5,6 +5,8 @@ import customtkinter as ctk
 from datetime import date
 import os
 import database as db
+from date_picker import show_date_picker
+
 
 FONT_HDR = "Thmanyah Sans"
 FONT_REG = "Cairo"
@@ -59,39 +61,39 @@ class SupplyPage(ctk.CTkFrame):
                       fg_color=self.C["accent"], text_color=self.C["btn_text"], hover_color="#0D9488",
                       corner_radius=10, height=44, command=self._open_add).pack(side="left")
 
-        # Date filter
-        flt = ctk.CTkFrame(self, fg_color=self.C["card"], corner_radius=12)
+        # Modern Filter Bar
+        flt = ctk.CTkFrame(self, fg_color=self.C["card"], corner_radius=12, border_width=1, border_color=self.C["border"])
         flt.pack(fill="x", padx=24, pady=(0, 10))
         inner = ctk.CTkFrame(flt, fg_color="transparent")
-        inner.pack(padx=12, pady=10)
+        inner.pack(pady=10)
 
-        ctk.CTkButton(inner, text="الكل", width=70, height=36, font=(FONT, 13),
-                      fg_color=self.C["hover"], text_color=self.C["text"],
-                      corner_radius=8, command=self._clear_filter).pack(side="left", padx=4)
-        
-        ctk.CTkButton(inner, text="تصفية", width=70, height=36, font=(FONT, 13),
-                      fg_color=self.C["blue"], text_color=self.C["btn_text"],
-                      corner_radius=8, command=self._apply_filter).pack(side="left", padx=4)
+        # 1. Label (Far Right)
+        ctk.CTkLabel(inner, text=":تاريخ التوريد", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right", padx=(0, 10))
 
-        # To Date
-        self._to_e = ctk.CTkEntry(inner, width=110, height=36, font=(FONT, 13),
-                                   fg_color=self.C["input"], border_color=self.C["border"],
-                                   text_color=self.C["text"], justify="center",
-                                   placeholder_text="YYYY-MM-DD", corner_radius=8)
-        self._to_e.pack(side="left", padx=2)
-        ctk.CTkButton(inner, text="", width=36, height=36, fg_color=self.C["blue"], image=get_white_icon("calendar", (18, 18)),
-                      hover_color=self.C["accent"], corner_radius=8, command=lambda: self._pick_date(self._to_e)).pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(inner, text="إلى", font=(FONT, 13), text_color=self.C["text2"]).pack(side="left")
+        # 2. From Group (Icon docked to Entry)
+        ctk.CTkButton(inner, text="", width=28, height=36, fg_color="transparent", image=self._cal_icon, hover_color=self.C["hover"], corner_radius=8, command=lambda: self._pick_date(self._from_e)).pack(side="right", padx=0)
+        self._from_e = ctk.CTkEntry(inner, width=135, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="...من تاريخ", corner_radius=12)
 
-        # From Date
-        self._from_e = ctk.CTkEntry(inner, width=110, height=36, font=(FONT, 13),
-                                     fg_color=self.C["input"], border_color=self.C["border"],
-                                     text_color=self.C["text"], justify="center",
-                                     placeholder_text="YYYY-MM-DD", corner_radius=8)
-        self._from_e.pack(side="left", padx=2)
-        ctk.CTkButton(inner, text="", width=36, height=36, fg_color=self.C["blue"], image=get_white_icon("calendar", (18, 18)),
-                      hover_color=self.C["accent"], corner_radius=8, command=lambda: self._pick_date(self._from_e)).pack(side="left", padx=(0, 8))
-        ctk.CTkLabel(inner, text="من", font=(FONT, 13), text_color=self.C["text2"]).pack(side="left")
+        self._from_e.pack(side="right", padx=0)
+
+        # 3. To Group (30px gap from 'From' group, then Icon docked to Entry)
+        ctk.CTkButton(inner, text="", width=28, height=36, fg_color="transparent", image=self._cal_icon, hover_color=self.C["hover"], corner_radius=8, command=lambda: self._pick_date(self._to_e)).pack(side="right", padx=(0, 30))
+        self._to_e = ctk.CTkEntry(inner, width=135, height=36, font=(FONT, 13), fg_color=self.C["input"], border_color=self.C["border"], text_color=self.C["text"], justify="center", placeholder_text="...إلى تاريخ", corner_radius=12)
+
+        self._to_e.pack(side="right", padx=0)
+
+        # 4. Action Buttons (40px gap from the date entries)
+        ctk.CTkButton(inner, text="تصفية", width=70, height=36, font=(FONT, 13, "bold"), fg_color=self.C["accent"], text_color=self.C["btn_text"], hover_color="#00897B", corner_radius=8, command=self._apply_filter).pack(side="right", padx=(0, 40))
+        ctk.CTkButton(inner, text="الكل", width=70, height=36, font=(FONT, 13), fg_color=self.C["hover"], text_color=self.C["text"], border_width=1, border_color=self.C["border"], corner_radius=8, command=self._clear_filter).pack(side="right", padx=(0, 5))
+
+
+        # 5. Today Button (Using PLACE to anchor it at the Far Left of the 'flt' frame)
+        ctk.CTkButton(flt, text="توريد اليوم", width=115, height=36, font=(FONT, 13, "bold"), image=get_white_icon("calendar", (18, 18)), compound="right", fg_color=self.C["blue"], text_color=self.C["btn_text"], hover_color="#1E40AF", corner_radius=8, command=self._today).place(relx=0.03, rely=0.5, anchor="w")
+
+
+
+
+
 
         # KPI row
         kpi = ctk.CTkFrame(self, fg_color="transparent")
@@ -138,6 +140,13 @@ class SupplyPage(ctk.CTkFrame):
             from datetime import datetime
             return f"\u200E{datetime.strptime(d, '%Y-%m-%d').strftime('%d/%m/%Y')}"
         except: return f"\u200E{d}"
+
+    def _today(self):
+        t = date.today().isoformat()
+        self._from_date = self._to_date = t
+        self._from_e.delete(0, "end"); self._from_e.insert(0, t)
+        self._to_e.delete(0, "end"); self._to_e.insert(0, t)
+        self.refresh()
 
     def refresh(self):
         rows = db.get_supplies(from_date=self._from_date, to_date=self._to_date)
@@ -207,102 +216,8 @@ class SupplyPage(ctk.CTkFrame):
         self.refresh()
 
     def _pick_date(self, entry):
-        import calendar
-        from datetime import date
-        
-        top = ctk.CTkToplevel(self)
-        top.title("اختر التاريخ")
-        top.geometry("320x360")
-        top.configure(fg_color=self.C["bg"])
-        top.attributes("-topmost", True)
-        top.grab_set()
-        
-        sw = self.winfo_screenwidth(); sh = self.winfo_screenheight()
-        top.geometry(f"+{(sw-320)//2}+{(sh-360)//2}")
-        
-        today = date.today()
-        curr_yr = [today.year]
-        curr_mo = [today.month]
-        view_mode = ["days"]
-        
-        ar_months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", 
-                     "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
-        
-        hdr = ctk.CTkFrame(top, fg_color="transparent")
-        hdr.pack(fill="x", padx=10, pady=10)
-        
-        mo_btn = ctk.CTkButton(hdr, text="", font=(FONT_REG, 15, "bold"), text_color=self.C["text"],
-                               fg_color=self.C["card"], border_width=1, border_color=self.C["border"],
-                               hover_color=self.C["hover"], corner_radius=8, height=35, command=lambda: toggle_view())
-        mo_btn.pack(side="right", expand=True)
-        
-        main_fr = ctk.CTkFrame(top, fg_color="transparent")
-        main_fr.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        def render():
-            for w in main_fr.winfo_children(): w.destroy()
-            
-            if view_mode[0] == "days":
-                mo_btn.configure(text=f"{ar_months[curr_mo[0]-1]} {curr_yr[0]}")
-                
-                for c, d in enumerate(["أحد","إثنين","ثلاثاء","أربعاء","خميس","جمعة","سبت"]):
-                    ctk.CTkLabel(main_fr, text=d, font=(FONT_REG, 11, "bold"), text_color=self.C["text2"]).grid(row=0, column=6-c, padx=4, pady=5)
-                
-                cal = calendar.Calendar(firstweekday=6)
-                for r, week in enumerate(cal.monthdayscalendar(curr_yr[0], curr_mo[0])):
-                    for c, day in enumerate(week):
-                        if day != 0:
-                            is_today = (curr_yr[0] == today.year and curr_mo[0] == today.month and day == today.day)
-                            bg = self.C["accent"] if is_today else self.C["card"]
-                            tc = "#FFF" if is_today else self.C["text"]
-                            
-                            btn = ctk.CTkButton(main_fr, text=str(day), width=35, height=35, font=(FONT_REG, 13, "bold"),
-                                                fg_color=bg, text_color=tc, hover_color=self.C["hover"], corner_radius=8,
-                                                command=lambda d=day: pick(d))
-                            btn.grid(row=r+1, column=6-c, padx=3, pady=2)
-            else:
-                mo_btn.configure(text=f"{curr_yr[0]}")
-                for i in range(12):
-                    r = i // 3
-                    c = i % 3
-                    is_curr = (curr_yr[0] == today.year and (i+1) == today.month)
-                    bg = self.C["accent"] if is_curr else self.C["card"]
-                    tc = "#FFF" if is_curr else self.C["text"]
-                    
-                    btn = ctk.CTkButton(main_fr, text=ar_months[i], width=85, height=45, font=(FONT_REG, 14, "bold"),
-                                        fg_color=bg, text_color=tc, hover_color=self.C["hover"], corner_radius=8,
-                                        command=lambda m=(i+1): pick_month(m))
-                    btn.grid(row=r, column=2-c, padx=5, pady=5)
-                        
-        def toggle_view():
-            view_mode[0] = "months" if view_mode[0] == "days" else "days"
-            render()
+        show_date_picker(self, entry, self.C)
 
-        def pick_month(m):
-            curr_mo[0] = m
-            view_mode[0] = "days"
-            render()
-
-        def pick(d):
-            entry.delete(0, "end")
-            entry.insert(0, f"{curr_yr[0]}-{curr_mo[0]:02d}-{d:02d}")
-            top.destroy()
-            if hasattr(self, "_apply_filter") and entry in [self._from_e, self._to_e]:
-                self._apply_filter()
-
-        def shift(m):
-            if view_mode[0] == "days":
-                curr_mo[0] += m
-                if curr_mo[0] > 12: curr_mo[0] = 1; curr_yr[0] += 1
-                if curr_mo[0] < 1: curr_mo[0] = 12; curr_yr[0] -= 1
-            else:
-                curr_yr[0] += m
-            render()
-            
-        ctk.CTkButton(hdr, text="<", width=30, fg_color=self.C["card"], text_color=self.C["text"], hover_color=self.C["hover"], command=lambda: shift(1)).pack(side="left")
-        ctk.CTkButton(hdr, text=">", width=30, fg_color=self.C["card"], text_color=self.C["text"], hover_color=self.C["hover"], command=lambda: shift(-1)).pack(side="right")
-        
-        render()
     def _clear_filter(self):
         self._from_e.delete(0, "end")
         self._to_e.delete(0, "end")
