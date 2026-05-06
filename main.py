@@ -9,9 +9,17 @@ import ctypes
 from datetime import datetime, date
 import database as db
 
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
 # ─── تسجيل الخطوط المخصصة ──────────────────────────────────────────────────
 def load_custom_fonts():
-    fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
+    fonts_dir = resource_path("fonts")
+
     if os.path.exists(fonts_dir):
         # البحث في المجلد الرئيسي والمجلدات الفرعية
         for root, dirs, files in os.walk(fonts_dir):
@@ -60,9 +68,10 @@ C = {
 FONT       = "Cairo"
 FONT_FALLBACK = "Tahoma"
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-IMG_DIR  = os.path.join(BASE_DIR, "product_images")
-ICON_DIR = os.path.join(BASE_DIR, "icons")
+BASE_DIR = resource_path(".")
+IMG_DIR  = resource_path("product_images")
+ICON_DIR = resource_path("icons")
+
 os.makedirs(IMG_DIR, exist_ok=True)
 
 def get_icon(name, size=(24, 24)):
@@ -104,9 +113,21 @@ class App(ctk.CTk):
         self._build_layout()
         self._show_page("products")
         self._update_clock()
+        
+        try:
+            import ctypes
+            myappid = 'mycompany.myproduct.subproduct.version'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            self.after(200, lambda: self.iconbitmap(resource_path("icon.ico")))
+        except Exception as e:
+            print("Icon Error:", e)
+
+            
         self._refresh_net()
 
+
     def _build_layout(self):
+
         # ═══ Top Bar ═══
         topbar = ctk.CTkFrame(self, fg_color=C["card"], height=85, corner_radius=0, # زدنا الطول شوية
                               border_width=1, border_color=C["border"])

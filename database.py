@@ -3,7 +3,17 @@ import sqlite3
 import os
 from datetime import datetime, date
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "store.db")
+import sys
+
+if getattr(sys, 'frozen', False):
+    # إذا كان البرنامج محول إلى exe، سيتم حفظ قاعدة البيانات بجانب ملف الـ exe
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # إذا كان يعمل كسكربت بايثون عادي
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+DB_PATH = os.path.join(BASE_DIR, "store.db")
+
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
