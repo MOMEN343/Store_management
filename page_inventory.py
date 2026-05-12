@@ -97,7 +97,7 @@ class InventoryPage(ctk.CTkFrame):
         sessions = db.get_inventory_sessions()
         names = [f"{s['id']} | {s['name'] or 'جرد'} ({s['start_date']})" for s in sessions]
         self._sess_combo.configure(values=names)
-        if names:
+        if sessions:
             self._sess_combo.set(names[0])
             self._load_report()
         else:
@@ -130,75 +130,103 @@ class InventoryPage(ctk.CTkFrame):
 
     def _render_cards(self):
         for w in self._scroll.winfo_children(): w.destroy()
-        self._entries = {} # {product_id: entry_widget}
-        
-        # Grid layout for cards
-        grid = ctk.CTkFrame(self._scroll, fg_color="transparent")
-        grid.pack(fill="both", expand=True)
-        grid.grid_columnconfigure((0, 1, 2), weight=1, pad=20)
+        self._entries = {}  # {product_id: entry_widget}
+        self._row_frames = []
 
-        for i, r in enumerate(self._rep_data):
-            card = ctk.CTkFrame(grid, fg_color=self.C["card"], corner_radius=20, border_width=1, border_color=self.C["border"])
-            card.grid(row=i//3, column=2-(i%3), padx=10, pady=10, sticky="nsew")
-            card._row_data = r
+        if not self._rep_data:
+            ctk.CTkLabel(self._scroll, text="لا توجد أصناف للجرد في هذه الفترة", font=(FONT, 16), text_color=self.C["text2"]).pack(expand=True, pady=60)
+            return
+
+        # ═══ تعريف الأعمدة الموحد ═══
+        # (النص، العرض، المحاذاة)
+        cols = [
+            ("#", 40, "center"),
+            ("اسم الصنف", 250, "e"),
+            ("الكود", 90, "center"),
+            ("سعر البيع", 90, "center"),
+            ("المتوفر (بداية+توريد)", 130, "center"),
+            ("الكمية الفعلية", 120, "center"),
+            ("الخارج من الرف", 110, "center"),
+            ("قيمة الخارج", 110, "center"),
+            ("حفظ", 60, "center"),
+        ]
+
+        # ═══ رأس الجدول ═══
+        header = ctk.CTkFrame(self._scroll, fg_color=self.C["accent"], corner_radius=10, height=44)
+        header.pack(fill="x", padx=5, pady=(0, 5))
+        header.pack_propagate(False)
+
+        for col_txt, col_w, col_anc in cols:
+            ctk.CTkLabel(header, text=col_txt, font=(FONT, 12, "bold"), text_color="#FFFFFF", width=col_w, anchor=col_anc).pack(side="right", padx=5)
+            # فاصل شفاف للحفاظ على المسافات
+            ctk.CTkFrame(header, width=1, fg_color="transparent").pack(side="right", fill="y", pady=10)
+
+        # ═══ الصفوف ═══
+        for idx, r in enumerate(self._rep_data):
+            row_bg = self.C["card"] if idx % 2 == 0 else self.C["sidebar"]
             
-            # Header: Name
-            head = ctk.CTkFrame(card, fg_color="transparent")
-            head.pack(fill="x", padx=10, pady=(10, 0))
-            
-            ctk.CTkLabel(head, text=r["name"], font=(FONT, 15, "bold"), text_color=self.C["text"], anchor="e").pack(side="right", fill="x", expand=True)
-            
-            # Header: Code (Completely Separated for RTL)
-            code_f = ctk.CTkFrame(card, fg_color="transparent")
-            code_f.pack(fill="x", padx=15, pady=(0, 10))
-            ctk.CTkLabel(code_f, text="كود", font=(FONT, 11), text_color=self.C["text2"]).pack(side="right")
-            ctk.CTkLabel(code_f, text=" : ", font=(FONT, 11), text_color=self.C["text2"]).pack(side="right")
-            ctk.CTkLabel(code_f, text=f"{r['code']}", font=(FONT, 11), text_color=self.C["text2"]).pack(side="right")
-            
-            # استخدام إطار داخلي لضمان ترتيب النصوص من اليمين لليسار بشكل سليم
-            mid = ctk.CTkFrame(card, fg_color=self.C["accent_f"], corner_radius=10)
-            mid.pack(fill="x", padx=15, pady=5)
-            inner_mid = ctk.CTkFrame(mid, fg_color="transparent")
-            inner_mid.pack(pady=8)
-            
-            # تقسيم النص لأربعة أجزاء لضمان الاتجاه الصحيح 100% (الكمية الموردة : 10 قطعة)
-            ctk.CTkLabel(inner_mid, text="الكمية الموردة", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right")
-            ctk.CTkLabel(inner_mid, text=" : ", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right")
-            ctk.CTkLabel(inner_mid, text=f"{r['supplied']}", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right")
-            ctk.CTkLabel(inner_mid, text=f" {r['unit']}", font=(FONT, 13, "bold"), text_color=self.C["accent"]).pack(side="right")
-            
-            # Input Area
-            ctk.CTkLabel(card, text="كم الكمية الفعلية المتبقية؟", font=(FONT, 12), text_color=self.C["text2"]).pack(pady=(10, 0))
-            
-            inp_f = ctk.CTkFrame(card, fg_color="transparent")
-            inp_f.pack(pady=5, padx=15)
-            
-            ent = ctk.CTkEntry(inp_f, width=100, height=45, font=(FONT, 18, "bold"), fg_color=self.C["input"], border_color=self.C["accent"], text_color=self.C["accent"], corner_radius=10, justify="center")
-            ent.pack(side="right")
+            # حسابات البيانات
+            actual_val = r["actual"]
+            loss       = r["shelf_loss"]
+            loss_value = r["loss_value"]
+            # Color coding: if they count, it's normal. 
+            loss_color = self.C["accent"]
+
+            row = ctk.CTkFrame(self._scroll, fg_color=row_bg, corner_radius=8, height=48)
+            row.pack(fill="x", padx=5, pady=2)
+            row.pack_propagate(False)
+            row._row_data = r
+            self._row_frames.append(row)
+
+            # 1. الترقيم
+            ctk.CTkLabel(row, text=str(idx+1), font=(FONT, 12), text_color=self.C["text2"], width=40, anchor="center").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 2. الاسم
+            ctk.CTkLabel(row, text=r["name"], font=(FONT, 13, "bold"), text_color=self.C["text"], width=250, anchor="e").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 3. الكود
+            ctk.CTkLabel(row, text=r["code"], font=("Consolas", 11), text_color=self.C["text2"], width=90, anchor="center").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 4. سعر البيع
+            ctk.CTkLabel(row, text=f"₪{r['sell_price']:,.0f}", font=(FONT, 12), text_color=self.C["text2"], width=90, anchor="center").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 5. المتوفر للبيع (رصيد سابق + توريد)
+            ctk.CTkLabel(row, text=str(r["available"]), font=(FONT, 13, "bold"), text_color=self.C["blue"], width=130, anchor="center").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 6. العد الفعلي (Input)
+            ent_f = ctk.CTkFrame(row, fg_color="transparent", width=120)
+            ent_f.pack(side="right", padx=5); ent_f.pack_propagate(False)
+            ent = ctk.CTkEntry(ent_f, width=110, height=32, font=(FONT, 14, "bold"), fg_color=self.C["input"], border_color=self.C["accent"], text_color=self.C["accent"], corner_radius=6, justify="center")
+            ent.pack(expand=True)
             self._entries[r["product_id"]] = ent
-            # نضع الكمية الموردة كقيمة افتراضية إذا لم يتم الجرد بعد، لتسهيل العمل
-            val_to_show = r["actual"] if r["actual"] is not None else r["supplied"]
-            ent.insert(0, str(val_to_show))
-            
-            # Action: Save individual card
-            btn = ctk.CTkButton(inp_f, text="حفظ", width=60, height=45, fg_color=self.C["accent"], hover_color="#00897B", corner_radius=10, font=(FONT, 13, "bold"), command=lambda e=ent, pid=r["product_id"]: self._save_item(pid, e))
-            btn.pack(side="right", padx=(5, 0))
-            
-            # Result on card
-            res_f = ctk.CTkFrame(card, fg_color="transparent")
-            res_f.pack(fill="x", padx=15, pady=(10, 15))
-            if r["actual"] is not None:
-                sold = r["sold"]
-                val = r["deficit_value"]
-                # Breaking down to fix RTL flipping
-                txt_f = ctk.CTkFrame(res_f, fg_color="transparent")
-                txt_f.pack()
-                ctk.CTkLabel(txt_f, text="تم بيع", font=(FONT, 12), text_color=self.C["blue"]).pack(side="right")
-                ctk.CTkLabel(txt_f, text=f" \u200E{sold} ", font=(FONT, 12, "bold"), text_color=self.C["blue"]).pack(side="right")
-                ctk.CTkLabel(txt_f, text="قطع بقيمة", font=(FONT, 12), text_color=self.C["blue"]).pack(side="right")
-                ctk.CTkLabel(txt_f, text=f" \u200E₪{val:,.0f} ", font=(FONT, 12, "bold"), text_color=self.C["blue"]).pack(side="right")
-            else:
-                ctk.CTkLabel(res_f, text="بانتظار العد...", font=(FONT, 12, "italic"), text_color=self.C["text2"]).pack()
+            ent.insert(0, str(r["actual"] if r["actual"] is not None else r["available"]))
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 7. الخارج من الرف (مبيعات + عجز)
+            ctk.CTkLabel(row, text=str(loss), font=(FONT, 13, "bold"), text_color=loss_color, width=110, anchor="center").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 8. قيمة الخارج
+            ctk.CTkLabel(row, text=f"₪{loss_value:,.0f}", font=(FONT, 13, "bold"), text_color=self.C["success"], width=110, anchor="center").pack(side="right", padx=5)
+            ctk.CTkFrame(row, width=1, fg_color=self.C["border"]).pack(side="right", fill="y", pady=8)
+
+            # 9. حفظ
+            ctk.CTkButton(row, text="✓", width=50, height=32, font=(FONT, 14, "bold"), fg_color=self.C["accent"], hover_color="#00897B", corner_radius=6, command=lambda e=ent, pid=r["product_id"]: self._save_item(pid, e)).pack(side="right", padx=5)
+
+    def _filter_cards(self):
+        q = self._search_e.get().strip().lower()
+        for row in self._row_frames:
+            if hasattr(row, "_row_data"):
+                r = row._row_data
+                if q in r["name"].lower() or q in r["code"].lower():
+                    row.pack(fill="x", padx=5, pady=2)
+                else:
+                    row.pack_forget()
 
     def _save_item(self, pid, entry):
         val = entry.get().strip()
@@ -271,10 +299,13 @@ class InventoryPage(ctk.CTkFrame):
             # Separator to the left of the value
             ctk.CTkLabel(f, text="  |", font=(FONT, 16), text_color=self.C["border"]).pack(side="right", padx=(10, 0))
 
-        add_kpi("المقبوضات", s["total_sales"], self.C["success"])
+        add_kpi("المبيعات المسجلة", s["total_sales"], self.C["success"])
         add_kpi("المصاريف", s["total_expenses"], self.C["danger"])
-        add_kpi("الديون", s["total_debts"], self.C["warning"])
-        add_kpi("بضاعة خارجة", s["physical_deficit_value"], self.C["accent"])
+        add_kpi("الديون المفتوحة", s["total_debts"], self.C["warning"])
+        
+        recon = s["net_result"]
+        recon_color = self.C["success"] if abs(recon) < 1 else self.C["danger"]
+        add_kpi("مطابقة (عجز/فائض)", recon, recon_color)
 
     def _filter_cards(self):
         q = self._search_e.get().strip().lower()
@@ -347,6 +378,13 @@ class _SessionDialog(ctk.CTkToplevel):
     def _save(self):
         f, t = self._from.get().strip(), self._to.get().strip()
         if not f or not t: return
+
+        # التأكد من وجود بضاعة نشطة في هذه الفترة قبل إنشاء الجلسة
+        if not db.check_active_inventory(f, t):
+            from tkinter import messagebox
+            messagebox.showwarning("تنبيه", "لا توجد بضاعة موردة أو نشطة في هذه الفترة، لذا لا يمكن إنشاء جلسة جرد فارغة.")
+            return
+
         # تصحيح اسم الدالة وترتيب المدخلات (تاريخ البدء، تاريخ الانتهاء، الاسم، الملاحظات)
         db.create_inventory_session(f, t, self._name.get().strip(), self._notes.get().strip())
         # جلب ID الجلسة التي أُنشئت للتو

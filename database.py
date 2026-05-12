@@ -132,6 +132,18 @@ def init_db():
         )
     """)
 
+    # ─── تسوية المخزون ────────────────────────────────────────────────────────
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS stock_adjustments (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id   INTEGER NOT NULL REFERENCES products(id),
+            session_id   INTEGER REFERENCES inventory_sessions(id),
+            adj_quantity INTEGER NOT NULL, -- الفرق (موجب للزيادة، سالب للعجز)
+            reason       TEXT    DEFAULT 'جرد',
+            created_at   TEXT    DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -204,12 +216,13 @@ def get_general_product_id():
     return None
 
 def get_product_stock(pid):
-    """حساب المخزون الحالي = توريد - مبيعات"""
+    """حساب المخزون الحالي = توريد - مبيعات + تسويات الجرد"""
     conn = get_conn()
     sup = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM supplies WHERE product_id=?", (pid,)).fetchone()[0]
     sal = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE product_id=?", (pid,)).fetchone()[0]
+    adj = conn.execute("SELECT COALESCE(SUM(adj_quantity),0) FROM stock_adjustments WHERE product_id=?", (pid,)).fetchone()[0]
     conn.close()
-    return sup - sal
+    return sup - sal + adj
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SUPPLIES
@@ -308,7 +321,7 @@ def add_expense(description, amount, category="عام", expense_date=None):
     conn.commit()
     conn.close()
 
-def get_expenses(from_date=None, to_date=None):
+def get_expenses(from_date=None, to_date=None, include_transfers=False):
     conn = get_conn()
     q = "SELECT * FROM expenses WHERE 1=1"
     params = []
@@ -316,6 +329,10 @@ def get_expenses(from_date=None, to_date=None):
         q += " AND expense_date>=?"; params.append(from_date)
     if to_date:
         q += " AND expense_date<=?"; params.append(to_date)
+    
+    if not include_transfers:
+        q += " AND category NOT LIKE 'INTERNAL_TRANSFER%' AND category != 'تحويل_صندوق'"
+    
     q += " ORDER BY expense_date DESC, id DESC"
     rows = conn.execute(q, params).fetchall()
     conn.close()
@@ -413,18 +430,37 @@ def get_cashbox_summary(from_date=None, to_date=None):
     """, prm).fetchone()[0]
 
     rng, prm = ranged("expense_date")
-    exp_total   = conn.execute(f"SELECT COALESCE(SUM(amount),0) FROM expenses WHERE 1=1{rng}", prm).fetchone()[0]
+    # Separate business expenses from internal transfers
+    exp_total = conn.execute(f"""
+        SELECT COALESCE(SUM(amount),0) FROM expenses 
+        WHERE 1=1{rng} 
+        AND category NOT LIKE 'INTERNAL_TRANSFER%' 
+        AND category != 'تحويل_صندوق'
+    """, prm).fetchone()[0]
+
+    trans_total = conn.execute(f"""
+        SELECT COALESCE(SUM(amount),0) FROM expenses 
+        WHERE 1=1{rng} 
+        AND (category LIKE 'INTERNAL_TRANSFER%' OR category = 'تحويل_صندوق')
+    """, prm).fetchone()[0]
 
     rng, prm = ranged("pay_date")
     debt_paid   = conn.execute(f"SELECT COALESCE(SUM(amount),0) FROM debt_payments WHERE 1=1{rng}", prm).fetchone()[0]
 
     conn.close()
-    net = sales_total + debt_paid - exp_total
+    # Operational Net: Sales + Debt Payments - Business Expenses
+    op_net = sales_total + debt_paid - exp_total
+    
+    # Final Box Net: Operational Net - Transfers (Withdrawals/Deposits)
+    final_net = op_net - trans_total
+    
     return {
         "sales":      sales_total,
         "expenses":   exp_total,
+        "transfers":  trans_total,
         "debt_paid":  debt_paid,
-        "net":        net,
+        "op_net":     op_net,
+        "net":        final_net,
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -445,21 +481,49 @@ def create_inventory_session(start_date, end_date, name="", notes=""):
 
 def save_inventory_item(session_id, product_id, actual_count, notes=""):
     conn = get_conn()
-    # تحديث أو إدراج
-    existing = conn.execute(
-        "SELECT id FROM inventory_items WHERE session_id=? AND product_id=?",
-        (session_id, product_id)
-    ).fetchone()
-    if existing:
-        conn.execute("UPDATE inventory_items SET actual_count=?,notes=? WHERE id=?",
-                     (actual_count, notes, existing["id"]))
-    else:
-        conn.execute("""
-            INSERT INTO inventory_items (session_id,product_id,actual_count,notes)
-            VALUES (?,?,?,?)
-        """, (session_id, product_id, actual_count, notes))
-    conn.commit()
-    conn.close()
+    try:
+        # 1. حساب المتوقع الحالي قبل الحفظ
+        sup = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM supplies WHERE product_id=?", (product_id,)).fetchone()[0]
+        sal = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE product_id=?", (product_id,)).fetchone()[0]
+        # استبعاد التسويات القديمة لنفس الجلسة إذا وجدت لنحسب الفرق الجديد
+        adj = conn.execute("SELECT COALESCE(SUM(adj_quantity),0) FROM stock_adjustments WHERE product_id=? AND session_id != ?", (product_id, session_id)).fetchone()[0]
+        
+        expected_now = sup - sal + adj
+        diff = actual_count - expected_now
+
+        # 2. تحديث أو إدراج في تفاصيل الجلسة
+        existing = conn.execute(
+            "SELECT id FROM inventory_items WHERE session_id=? AND product_id=?",
+            (session_id, product_id)
+        ).fetchone()
+        if existing:
+            conn.execute("UPDATE inventory_items SET actual_count=?,notes=? WHERE id=?",
+                         (actual_count, notes, existing["id"]))
+        else:
+            conn.execute("""
+                INSERT INTO inventory_items (session_id,product_id,actual_count,notes)
+                VALUES (?,?,?,?)
+            """, (session_id, product_id, actual_count, notes))
+
+        # 3. تحديث أو إدراج في جدول التسويات ليعكس النتيجة فوراً في البرنامج
+        existing_adj = conn.execute(
+            "SELECT id FROM stock_adjustments WHERE session_id=? AND product_id=?",
+            (session_id, product_id)
+        ).fetchone()
+        if existing_adj:
+            conn.execute("UPDATE stock_adjustments SET adj_quantity=? WHERE id=?", (diff, existing_adj["id"]))
+        else:
+            conn.execute("""
+                INSERT INTO stock_adjustments (session_id, product_id, adj_quantity, reason)
+                VALUES (?, ?, ?, 'تسوية جرد')
+            """, (session_id, product_id, diff))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 def get_inventory_sessions():
     conn = get_conn()
@@ -469,14 +533,27 @@ def get_inventory_sessions():
 
 def delete_inventory_session(sid):
     conn = get_conn()
-    conn.execute("DELETE FROM inventory_items WHERE session_id=?", (sid,))
-    conn.execute("DELETE FROM inventory_sessions WHERE id=?", (sid,))
-    # التحقق إذا كان الجدول قد أصبح فارغاً لتصفير العداد
-    count = conn.execute("SELECT COUNT(*) FROM inventory_sessions").fetchone()[0]
-    if count == 0:
-        conn.execute("DELETE FROM sqlite_sequence WHERE name='inventory_sessions'")
-    conn.commit()
-    conn.close()
+    try:
+        # 1. حذف تفاصيل الجرد لهذه الجلسة
+        conn.execute("DELETE FROM inventory_items WHERE session_id=?", (sid,))
+        
+        # 2. حذف تسويات المخزون الناتجة عن هذه الجلسة
+        conn.execute("DELETE FROM stock_adjustments WHERE session_id=?", (sid,))
+        
+        # 3. حذف الجلسة نفسها
+        conn.execute("DELETE FROM inventory_sessions WHERE id=?", (sid,))
+        
+        # تصفير العداد إذا كان الجدول فارغاً
+        count = conn.execute("SELECT COUNT(*) FROM inventory_sessions").fetchone()[0]
+        if count == 0:
+            conn.execute("DELETE FROM sqlite_sequence WHERE name='inventory_sessions'")
+            
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 def get_inventory_report(session_id):
     conn = get_conn()
@@ -494,9 +571,12 @@ def get_inventory_report(session_id):
         (s_date, e_date)
     ).fetchone()[0]
 
-    # إجمالي المصروفات
+    # إجمالي المصروفات التشغيلية فقط (Exclude Transfers as per client request)
     total_expenses = conn.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE expense_date BETWEEN ? AND ?",
+        """SELECT COALESCE(SUM(amount), 0) FROM expenses 
+           WHERE expense_date BETWEEN ? AND ? 
+           AND category NOT LIKE 'INTERNAL_TRANSFER%' 
+           AND category != 'تحويل_صندوق'""",
         (s_date, e_date)
     ).fetchone()[0]
 
@@ -516,32 +596,42 @@ def get_inventory_report(session_id):
     """).fetchall()
 
     report = []
-    total_implied_sales_value = 0.0
+    total_shelf_loss_value = 0.0
 
     for prod in products:
         pid = prod["id"]
-        # كمية التوريد في هذه الفترة
-        supplied = conn.execute(
-            "SELECT COALESCE(SUM(quantity),0) FROM supplies WHERE product_id=? AND supply_date BETWEEN ? AND ?",
-            (pid, s_date, e_date)
-        ).fetchone()[0]
         
-        # الكمية الفعلية المتبقية (التي أدخلها المستخدم)
-        inv_row = conn.execute(
-            "SELECT actual_count, notes FROM inventory_items WHERE session_id=? AND product_id=?",
-            (session_id, pid)
-        ).fetchone()
+        # 1. حساب رصيد البداية (قبل تاريخ بداية هذه الجلسة)
+        # الرصيد = توريد سابق - مبيعات سابقة + تسويات سابقة
+        sup_pre = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM supplies WHERE product_id=? AND supply_date < ?", (pid, s_date)).fetchone()[0]
+        sal_pre = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM sales WHERE product_id=? AND sale_date < ?", (pid, s_date)).fetchone()[0]
+        adj_pre = conn.execute("SELECT COALESCE(SUM(adj_quantity),0) FROM stock_adjustments WHERE product_id=? AND session_id IN (SELECT id FROM inventory_sessions WHERE start_date < ?)", (pid, s_date)).fetchone()[0]
+        
+        start_stock = sup_pre - sal_pre + adj_pre
+        
+        # 2. التوريد الجديد خلال فترة الجلسة
+        new_supply = conn.execute("SELECT COALESCE(SUM(quantity),0) FROM supplies WHERE product_id=? AND supply_date BETWEEN ? AND ?", (pid, s_date, e_date)).fetchone()[0]
+        
+        # المتوفر الكلي للبيع في هذه الفترة
+        available = start_stock + new_supply
+
+        # 3. ما تم جره فعلياً
+        inv_row = conn.execute("SELECT actual_count, notes FROM inventory_items WHERE session_id=? AND product_id=?", (session_id, pid)).fetchone()
+        
+        # تصفية: إذا لم يكن هناك بضاعة ولا توريد ولا جرد، نتجاهل الصنف
+        if available <= 0 and inv_row is None:
+            continue
+
         actual = inv_row["actual_count"] if inv_row else None
         inv_notes = inv_row["notes"] if inv_row else ""
         
-        # المبيعات "المفترضة" = ما تم توريده - ما تبقى على الرف
-        # (بافتراض أن المخزن بدأ بـ 0 أو أننا نجرد التوريد الجديد فقط)
-        implied_sold = (supplied - actual) if actual is not None else 0
-        if implied_sold < 0: implied_sold = 0 # زيادة غير متوقعة
+        # 4. الخارج من الرف (المبيعات الفعلية + أي عجز)
+        # هو الفرق بين ما كان متاحاً وبين ما بقي فعلياً
+        shelf_loss = (available - actual) if actual is not None else 0
+        if shelf_loss < 0: shelf_loss = 0 # حالة زيادة غير منطقية (فائض)
         
-        # القيمة المالية لما خرج من الرف
-        implied_value = implied_sold * prod["sell_price"]
-        total_implied_sales_value += implied_value
+        loss_value = shelf_loss * prod["sell_price"]
+        total_shelf_loss_value += loss_value
 
         report.append({
             "product_id":   pid,
@@ -549,46 +639,66 @@ def get_inventory_report(session_id):
             "name":         prod["name"],
             "unit":         prod["unit"],
             "sell_price":   prod["sell_price"],
-            "supplied":     supplied,
-            "sold":         implied_sold, # هنا نعرض الكمية التي "اختفت" من الرف
-            "expected":     supplied,     # المتوقع هو إجمالي ما تم توريده
+            "available":    available,
             "actual":       actual,
-            "deficit":      0,            # لم يعد هناك عجز قطع، بل عجز مالي إجمالي
-            "deficit_value": implied_value,
+            "shelf_loss":   shelf_loss,
+            "loss_value":   loss_value,
             "inv_notes":    inv_notes,
         })
 
     conn.close()
     
-    # 3. ملخص الجرد النهائي بناءً على مقارنة "الرف" بـ "الصندوق"
-    # ما يجب أن يكون في الصندوق = (قيمة ما خرج من الرف) - (الديون) - (المصاريف)
-    expected_cash_in_box = total_implied_sales_value - total_new_debts - total_expenses
+    # 5. المطابقة النهائية (Reconciliation)
+    # ما يجب أن يكون قد دخل الصندوق = (قيمة الخارج من الرف) - (الديون الجديدة) - (المصاريف)
+    expected_cash = total_shelf_loss_value - total_new_debts - total_expenses
     
-    # العجز أو الفائض = (ما تم تسجيله فعلياً في المبيعات) - (ما يجب أن يكون في الصندوق)
-    final_reconciliation = total_sales_cash - expected_cash_in_box
+    # الفرق بين المسجل فعلياً (المبيعات) وبين المتوقع من حركة الرف
+    recon_diff = total_sales_cash - expected_cash
     
     summary = {
-        "total_sales": total_sales_cash,     # ما سجله المستخدم بيده
+        "total_sales":    total_sales_cash,
         "total_expenses": total_expenses,
-        "total_debts": total_new_debts,
-        "physical_deficit_value": total_implied_sales_value, # قيمة البضاعة التي غادرت المحل
-        "net_result": final_reconciliation    # الفرق النهائي (عجز/فائض مالي)
+        "total_debts":    total_new_debts,
+        "shelf_loss_val": total_shelf_loss_value,
+        "net_result":     recon_diff
     }
     
     return session, report, summary
 
-def delete_inventory_session(session_id):
-    conn = get_conn()
-    conn.execute("DELETE FROM inventory_items WHERE session_id=?", (session_id,))
-    conn.execute("DELETE FROM inventory_sessions WHERE id=?", (session_id,))
-    conn.commit()
-    conn.close()
 
 def delete_inventory_item(session_id, product_id):
     conn = get_conn()
     conn.execute("DELETE FROM inventory_items WHERE session_id=? AND product_id=?", (session_id, product_id))
     conn.commit()
     conn.close()
+
+def check_active_inventory(start_date, end_date):
+    """
+    التحقق من وجود أصناف نشطة (تم توريدها في الفترة المحددة ولها رصيد)
+    للتأكد من أن جلسة الجرد لن تكون فارغة.
+    """
+    conn = get_conn()
+    products = conn.execute("SELECT id FROM products WHERE code != 'GENERAL'").fetchall()
+    
+    found = False
+    for prod in products:
+        pid = prod["id"]
+        # هل تم توريده في هذه الفترة؟
+        supplied = conn.execute(
+            "SELECT COALESCE(SUM(quantity),0) FROM supplies WHERE product_id=? AND supply_date BETWEEN ? AND ?",
+            (pid, start_date, end_date)
+        ).fetchone()[0]
+        
+        if supplied > 0:
+            found = True
+            break
+        
+        # أو هل له رصيد متبقي؟
+        if get_product_stock(pid) > 0:
+            found = True
+            break
+    conn.close()
+    return found
 
 def reset_all_data():
     """

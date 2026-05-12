@@ -1,0 +1,78 @@
+2026-05-06 11:54:45,248 - ERROR - Critical Error: 
+Traceback (most recent call last):
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 410, in <module>
+    app = App()
+          ^^^^^
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 117, in __init__
+    self._show_page("products")
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 356, in _show_page
+    self._pages[key] = cls(self._content, C)
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\page_products.py", line 93, in __init__
+    self._build()
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\page_products.py", line 124, in _build
+    self._search_entry = tk.Entry(search_container, font=(FONT, 14),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kraiz\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 3137, in __init__
+    Widget.__init__(self, master, 'entry', cnf, kw)
+  File "C:\Users\kraiz\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 2661, in __init__
+    self.tk.call(
+_tkinter.TclError: invalid color name "#F9FAFB #0F172A"
+
+2026-05-06 11:58:46,776 - ERROR - Critical Error: 
+Traceback (most recent call last):
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 410, in <module>
+    app = App()
+          ^^^^^
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 117, in __init__
+    self._show_page("products")
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 356, in _show_page
+    self._pages[key] = cls(self._content, C)
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\page_products.py", line 93, in __init__
+    self._build()
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\page_products.py", line 124, in _build
+    self._search_entry = tk.Entry(search_container, font=(FONT, 14),
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\kraiz\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 3137, in __init__
+    Widget.__init__(self, master, 'entry', cnf, kw)
+  File "C:\Users\kraiz\AppData\Local\Programs\Python\Python312\Lib\tkinter\__init__.py", line 2661, in __init__
+    self.tk.call(
+_tkinter.TclError: invalid color name "#F9FAFB #0F172A"
+
+2026-05-09 08:03:37,151 - ERROR - Critical Error: 
+Traceback (most recent call last):
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 410, in <module>
+    app = App()
+          ^^^^^
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 137, in __init__
+    self._refresh_net()
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 380, in _refresh_net
+    s = db.get_cashbox_summary(today, today)
+        ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'database' has no attribute 'get_cashbox_summary'
+
+2026-05-09 08:03:44,494 - ERROR - Critical Error: 
+Traceback (most recent call last):
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 410, in <module>
+    app = App()
+          ^^^^^
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 137, in __init__
+    self._refresh_net()
+  File "c:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 380, in _refresh_net
+    s = db.get_cashbox_summary(today, today)
+        ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'database' has no attribute 'get_cashbox_summary'
+
+2026-05-09 08:04:16,161 - ERROR - Critical Error: 
+Traceback (most recent call last):
+  File "C:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 410, in <module>
+    app = App()
+          ^^^^^
+  File "C:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 137, in __init__
+    self._refresh_net()
+  File "C:\Users\kraiz\OneDrive\Desktop\Strore_managment\main.py", line 380, in _refresh_net
+    s = db.get_cashbox_summary(today, today)
+        ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'database' has no attribute 'get_cashbox_summary'
+

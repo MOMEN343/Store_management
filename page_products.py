@@ -10,7 +10,12 @@ import database as db
 FONT_HDR = "Thmanyah Sans"
 FONT_REG = "Cairo"
 FONT = FONT_REG
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+import sys
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    
 IMG_DIR  = os.path.join(BASE_DIR, "product_images")
 ICON_DIR = os.path.join(BASE_DIR, "icons")
 os.makedirs(IMG_DIR, exist_ok=True)
@@ -142,9 +147,6 @@ class ProductsPage(ctk.CTkFrame):
         self._stats_container.pack(side="right", padx=20)
 
         
-        # Bind keyboard scrolling (safer way)
-        self._scroll.bind_all("<Down>", lambda e: self._scroll._canvas.yview_scroll(2, "units") if self.winfo_exists() and self.winfo_ismapped() else None)
-        self._scroll.bind_all("<Up>", lambda e: self._scroll._canvas.yview_scroll(-2, "units") if self.winfo_exists() and self.winfo_ismapped() else None)
 
     def _on_search_key(self, event):
         """تأخير البحث قليلاً لتجنب التعليق أثناء الكتابة (Debounce)"""

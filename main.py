@@ -9,11 +9,17 @@ import ctypes
 from datetime import datetime, date
 import database as db
 
+if getattr(sys, 'frozen', False):
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def resource_path(relative_path):
+    """Assets inside the EXE (Icons, Fonts)"""
     try:
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
+        base_path = BASE_DIR
     return os.path.join(base_path, relative_path)
 
 # ─── تسجيل الخطوط المخصصة ──────────────────────────────────────────────────
@@ -68,8 +74,8 @@ C = {
 FONT       = "Cairo"
 FONT_FALLBACK = "Tahoma"
 
-BASE_DIR = resource_path(".")
-IMG_DIR  = resource_path("product_images")
+BASE_DIR = BASE_DIR
+IMG_DIR  = os.path.join(BASE_DIR, "product_images")
 ICON_DIR = resource_path("icons")
 
 os.makedirs(IMG_DIR, exist_ok=True)
@@ -107,6 +113,7 @@ class App(ctk.CTk):
         self.after(0, lambda: self.state("zoomed"))
 
         self._pages = {}
+        self._active_page = None
         self._active_btn = None
         self._nav_buttons = []
 
@@ -124,6 +131,69 @@ class App(ctk.CTk):
 
             
         self._refresh_net()
+
+        # Keyboard Scrolling Bindings
+        self.bind_all("<Down>", self._on_keyboard_scroll)
+        self.bind_all("<Up>", self._on_keyboard_scroll)
+        self.bind_all("<Prior>", self._on_keyboard_scroll)
+        self.bind_all("<Next>", self._on_keyboard_scroll)
+        self.bind_all("<KP_Down>", self._on_keyboard_scroll)
+        self.bind_all("<KP_Up>", self._on_keyboard_scroll)
+        self.bind_all("<KP_Prior>", self._on_keyboard_scroll)
+        self.bind_all("<KP_Next>", self._on_keyboard_scroll)
+        
+        # Mouse Wheel Global Support
+        self.bind_all("<MouseWheel>", self._on_mouse_wheel)
+
+
+    def _on_keyboard_scroll(self, event):
+        """Handler for keyboard scrolling – Simulates mouse wheel for maximum compatibility"""
+        f = self.focus_get()
+        if f:
+            try:
+                # Skip if in a text input or combobox
+                if isinstance(f, (tk.Text, ctk.CTkTextbox)) or "textbox" in str(f).lower():
+                    return
+                if isinstance(f, (ctk.CTkComboBox, ttk.Combobox, tk.Listbox)):
+                    return
+            except: pass
+
+        page = self._active_page
+        if not page: return
+
+        target_scroll = getattr(page, "_scroll", None)
+        if target_scroll and hasattr(target_scroll, "_canvas"):
+            try:
+                keysym = event.keysym
+                delta = 0
+                if keysym in ("Down", "KP_Down"):
+                    delta = -120 # Scroll Down
+                elif keysym in ("Up", "KP_Up"):
+                    delta = 120  # Scroll Up
+                elif keysym in ("Next", "KP_Next"): # PageDown
+                    delta = -1200
+                elif keysym in ("Prior", "KP_Prior"): # PageUp
+                    delta = 1200
+                
+                if delta != 0:
+                    # Generate a mouse wheel event on the canvas
+                    target_scroll._canvas.event_generate("<MouseWheel>", delta=delta, x=0, y=0)
+            except:
+                pass
+
+    def _on_mouse_wheel(self, event):
+        """Global mouse wheel handler for scrollable frames"""
+        page = self._active_page
+        if not page: return
+        
+        target_scroll = getattr(page, "_scroll", None)
+        if target_scroll and hasattr(target_scroll, "_canvas"):
+            try:
+                # Windows uses event.delta (usually 120 or -120)
+                # We normalize it for CTkScrollableFrame
+                target_scroll._canvas.y_view("scroll", -1*(event.delta//120)*2, "units")
+            except:
+                pass
 
 
     def _build_layout(self):
@@ -345,9 +415,12 @@ class App(ctk.CTk):
             self._pages[key] = cls(self._content, C)
 
         page = self._pages[key]
+        self._active_page = page   # <-- track for keyboard scrolling
+        
         if hasattr(page, "refresh"):
             page.refresh()
         page.pack(fill="both", expand=True)
+        self.focus_set() # Keep focus on root to ensure bindings work
 
     def _update_clock(self):
         now = datetime.now()

@@ -114,7 +114,10 @@ class ExpensesPage(ctk.CTkFrame):
         return v_lbl
 
     def refresh(self):
-        rows = db.get_expenses(from_date=self._from_date, to_date=self._to_date)
+        all_rows = db.get_expenses(from_date=self._from_date, to_date=self._to_date)
+        # Filter out internal transfers from this page
+        rows = [r for r in all_rows if r["category"] != "INTERNAL_TRANSFER"]
+        
         for w in self._scroll.winfo_children(): w.destroy()
         
         header = ctk.CTkFrame(self._scroll, fg_color=self.C["sidebar"], corner_radius=10)
